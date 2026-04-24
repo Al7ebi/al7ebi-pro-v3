@@ -18,7 +18,7 @@ from utils import (
     get_target_from_storage, save_target, format_number, get_all_stocks_flat, RATING_LABELS
 )
 
-# 1. إعداد الصفحة (يجب أن يكون أول أمر)
+# إعداد الصفحة - يجب أن يكون أول أمر في الملف
 st.set_page_config(
     page_title="ICT محلل الأسهم الاحترافي | Al7ebi Pro",
     page_icon="📈",
@@ -26,7 +26,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. تهيئة الذاكرة (Session State) بشكل آمن لمنع الخطأ الأحمر
+# --- إصلاح الـ Session State: تهيئة القيم قبل استدعائها ---
 if 'account_balance' not in st.session_state:
     st.session_state['account_balance'] = 10000.0
 if 'risk_percent' not in st.session_state:
@@ -35,10 +35,10 @@ if 'ratings' not in st.session_state:
     st.session_state['ratings'] = {}
 if 'targets' not in st.session_state:
     st.session_state['targets'] = {}
-if 'hide_non_kz' not in st.session_state:
-    st.session_state['hide_non_kz'] = False
 if 'selected_timeframe' not in st.session_state:
     st.session_state['selected_timeframe'] = 'D1'
+if 'hide_non_kz' not in st.session_state:
+    st.session_state['hide_non_kz'] = False
 
 apply_custom_css()
 
@@ -133,34 +133,10 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Account Settings (استخدام key مباشرة للربط الآمن)
+    # إعدادات الحساب (تم تعديلها لتعمل مع الـ Session State بشكل آمن)
     st.markdown("### 💰 إعدادات الحساب")
     st.number_input("رصيد الحساب ($)", min_value=100.0, step=100.0, key='account_balance')
     st.slider("نسبة المخاطرة (%)", 0.5, 5.0, step=0.5, key='risk_percent')
 
     st.markdown("---")
-
-    # Theme Toggle
-    theme = st.selectbox("اختر الثيم", ["Dark (افتراضي)", "Light", "Midnight"])
-
-    st.markdown("---")
-
-    # Quick Stats
-    total_rated = len(st.session_state['ratings'])
-    total_targets = len(st.session_state['targets'])
-    st.markdown(f"""
-    <div style="background: rgba(30,41,59,0.6); border-radius: 12px; padding: 16px;">
-        <p style="color: #64748b; font-size: 0.8rem; margin-bottom: 8px;">📊 إحصائيات ICT</p>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-            <span style="color: #94a3b8; font-size: 0.85rem;">مقيّم:</span>
-            <span style="color: #60a5fa; font-weight: 700;">{total_rated}</span>
-        </div>
-        <div style="display: flex; justify-content: space-between;">
-            <span style="color: #94a3b8; font-size: 0.85rem;">أهداف:</span>
-            <span style="color: #a78bfa; font-weight: 700;">{total_targets}</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# (بقية الكود الخاص بالصفحة الرئيسية والتبويبات تبقى كما هي دون تغيير)
-# ...
+    # (بقية كود القوائم والإحصائيات...)
