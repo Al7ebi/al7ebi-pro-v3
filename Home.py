@@ -18,6 +18,7 @@ from utils import (
     get_target_from_storage, save_target, format_number, get_all_stocks_flat, RATING_LABELS
 )
 
+# 1. إعداد الصفحة (يجب أن يكون أول أمر)
 st.set_page_config(
     page_title="ICT محلل الأسهم الاحترافي | Al7ebi Pro",
     page_icon="📈",
@@ -25,7 +26,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 1. إصلاح الـ Session State (يجب أن يكون قبل أي استدعاء آخر) ---
+# 2. تهيئة الذاكرة (Session State) بشكل آمن لمنع الخطأ الأحمر
 if 'account_balance' not in st.session_state:
     st.session_state['account_balance'] = 10000.0
 if 'risk_percent' not in st.session_state:
@@ -34,10 +35,10 @@ if 'ratings' not in st.session_state:
     st.session_state['ratings'] = {}
 if 'targets' not in st.session_state:
     st.session_state['targets'] = {}
-if 'selected_timeframe' not in st.session_state:
-    st.session_state['selected_timeframe'] = 'D1'
 if 'hide_non_kz' not in st.session_state:
     st.session_state['hide_non_kz'] = False
+if 'selected_timeframe' not in st.session_state:
+    st.session_state['selected_timeframe'] = 'D1'
 
 apply_custom_css()
 
@@ -45,8 +46,69 @@ apply_custom_css()
 active_kz, next_kz, ny_now = get_kill_zone_status()
 session_name, countdown = get_session_countdown()
 
-# (بقية كود الـ Ticker Tape و Kill Zone تبقى كما هي...)
-# ... [كود الـ Ticker Tape هنا] ...
+# Ticker Tape
+ticker_data = get_ticker_tape_data()
+ticker_html = ""
+for name, data in ticker_data.items():
+    color = "up" if data['change'] >= 0 else "down"
+    arrow = "▲" if data['change'] >= 0 else "▼"
+    ticker_html += f'<span class="ticker-item {color}">{name}: {data["price"]:.2f} {arrow} {abs(data["change"]):.2f}%</span>'
+
+st.markdown(f"""
+<div class="ticker-tape">
+    <div style="animation: scroll 30s linear infinite; display: inline-block;">
+        {ticker_html}
+    </div>
+</div>
+<style>
+@keyframes scroll {{
+    0% {{ transform: translateX(100%); }}
+    100% {{ transform: translateX(-100%); }}
+}}
+</style>
+""", unsafe_allow_html=True)
+
+# Kill Zone Status Bar
+col_kz1, col_kz2, col_kz3, col_kz4 = st.columns([2, 2, 2, 2])
+with col_kz1:
+    kz_status = "🔥 نشطة" if active_kz else "⏳ غير نشطة"
+    kz_color = "#fbbf24" if active_kz else "#64748b"
+    st.markdown(f"""
+    <div style="background: rgba(30,41,59,0.8); border-radius: 12px; padding: 12px; text-align: center;">
+        <p style="color: #64748b; font-size: 0.75rem; margin: 0;">Kill Zones</p>
+        <p style="color: {kz_color}; font-weight: 700; font-size: 1rem; margin: 4px 0 0 0;">{kz_status}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col_kz2:
+    hours, remainder = divmod(int(countdown.total_seconds()), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    st.markdown(f"""
+    <div class="countdown-box">
+        <p style="color: #64748b; font-size: 0.7rem; margin: 0;">العد التنازلي لـ {session_name}</p>
+        <p class="countdown-value">{hours:02d}:{minutes:02d}:{seconds:02d}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col_kz3:
+    st.markdown(f"""
+    <div style="background: rgba(30,41,59,0.8); border-radius: 12px; padding: 12px; text-align: center;">
+        <p style="color: #64748b; font-size: 0.75rem; margin: 0;">توقيت نيويورك</p>
+        <p style="color: #60a5fa; font-weight: 700; font-size: 1rem; margin: 4px 0 0 0;">{ny_now.strftime('%H:%M:%S')} EST</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col_kz4:
+    silver_bullet = "🔥 نشط" if any(z['name'] in ['London Kill Zone', 'New York Kill Zone'] for z in active_kz) else "❌ غير نشط"
+    sb_color = "#fbbf24" if "🔥" in silver_bullet else "#64748b"
+    st.markdown(f"""
+    <div style="background: rgba(30,41,59,0.8); border-radius: 12px; padding: 12px; text-align: center;">
+        <p style="color: #64748b; font-size: 0.75rem; margin: 0;">Silver Bullet Window</p>
+        <p style="color: {sb_color}; font-weight: 700; font-size: 1rem; margin: 4px 0 0 0;">{silver_bullet}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.markdown("<br>", unsafe_allow_html=True)
 
 # ============ SIDEBAR ============
 with st.sidebar:
@@ -59,6 +121,7 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
     st.markdown("---")
+
     st.markdown("### 🧭 التنقل")
     page = st.radio("", [
         "🏠 الرئيسية - ICT Analysis",
@@ -70,11 +133,34 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # --- 2. تعديل طريقة كتابة المدخلات لتجنب الـ Exception ---
+    # Account Settings (استخدام key مباشرة للربط الآمن)
     st.markdown("### 💰 إعدادات الحساب")
-    # نستخدم key مباشرة لربط القيمة بالـ session_state تلقائياً وبشكل آمن
     st.number_input("رصيد الحساب ($)", min_value=100.0, step=100.0, key='account_balance')
     st.slider("نسبة المخاطرة (%)", 0.5, 5.0, step=0.5, key='risk_percent')
 
     st.markdown("---")
-    # (بقية كود الـ Sidebar تبقى كما هي...)
+
+    # Theme Toggle
+    theme = st.selectbox("اختر الثيم", ["Dark (افتراضي)", "Light", "Midnight"])
+
+    st.markdown("---")
+
+    # Quick Stats
+    total_rated = len(st.session_state['ratings'])
+    total_targets = len(st.session_state['targets'])
+    st.markdown(f"""
+    <div style="background: rgba(30,41,59,0.6); border-radius: 12px; padding: 16px;">
+        <p style="color: #64748b; font-size: 0.8rem; margin-bottom: 8px;">📊 إحصائيات ICT</p>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="color: #94a3b8; font-size: 0.85rem;">مقيّم:</span>
+            <span style="color: #60a5fa; font-weight: 700;">{total_rated}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+            <span style="color: #94a3b8; font-size: 0.85rem;">أهداف:</span>
+            <span style="color: #a78bfa; font-weight: 700;">{total_targets}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# (بقية الكود الخاص بالصفحة الرئيسية والتبويبات تبقى كما هي دون تغيير)
+# ...
